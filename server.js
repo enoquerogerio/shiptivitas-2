@@ -1,5 +1,6 @@
 import express from 'express';
 import Database from 'better-sqlite3';
+import res from 'express/lib/response';
 
 const app = express();
 
@@ -114,6 +115,17 @@ app.get('/api/v1/clients/:id', (req, res) => {
  *      priority (optional): integer,
  *
  */
+
+function isPriorityUniqueForStatus(status, priority, idToExclude) {
+  const query = `
+    SELECT COUNT(*) AS count 
+    FROM clients 
+    WHERE status = ? AND priority = ? and id != ?
+  `;
+
+  const result = db.prepare(query).get(status, priority, idToExclude)
+  return result.count === 0
+}
 app.put('/api/v1/clients/:id', (req, res) => {
   const id = parseInt(req.params.id , 10);
   const { valid, messageObj } = validateId(id);
@@ -126,7 +138,18 @@ app.put('/api/v1/clients/:id', (req, res) => {
   const client = clients.find(client => client.id === id);
 
   /* ---------- Update code below ----------*/
+  if(status){
+    client.status = status
+    db.prepare("update clients set status = ? where id = ?").run(status, id)
+  }
 
+  if(priority){
+    if(!isPriorityUniqueForStatus(status, priority, id)){
+      return res.status(406).send("This priority is already in use for this status")
+    }
+    client.priority = priority
+    db.prepare("update clients set priority = ? where id = ?").run(priority, id)
+  }
 
 
   return res.status(200).send(clients);
